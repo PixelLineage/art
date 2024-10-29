@@ -363,7 +363,8 @@ class GlobalValueNumberer : public ValueObject {
         side_effects_(side_effects),
         sets_(graph->GetBlocks().size(), nullptr, allocator_.Adapter(kArenaAllocGvn)),
         visited_blocks_(
-            &allocator_, graph->GetBlocks().size(), /* expandable= */ false, kArenaAllocGvn) {}
+            &allocator_, graph->GetBlocks().size(), /* expandable= */ false, kArenaAllocGvn),
+        did_optimization_(false) {}
 
   bool Run();
 
@@ -407,6 +408,9 @@ class GlobalValueNumberer : public ValueObject {
   // visited/unvisited Boolean.
   ArenaBitVector visited_blocks_;
 
+  // True if GVN did at least one removal.
+  bool did_optimization_;
+
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
 };
 
@@ -419,7 +423,7 @@ bool GlobalValueNumberer::Run() {
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     VisitBasicBlock(block);
   }
-  return true;
+  return did_optimization_;
 }
 
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
@@ -512,6 +516,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         // Or current is used by a phi, and we don't do OrderInputs() on a phi anyway.
         current->ReplaceWith(existing);
         current->GetBlock()->RemoveInstruction(current);
+        did_optimization_ = true;
       } else {
         set->Kill(current->GetSideEffects());
         set->Add(current);
